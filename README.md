@@ -29,8 +29,9 @@ https://github.com/adrianmihalko/ch340g-ch34g-ch34x-mac-os-x-driver#installation
 USB device automatically, set it to 115200 baud, and start printing whatever
 comes in.
 
-There are command line options to set the baud rate and manually specify the USB
-device to use. Do `npm start -- -h` to get a list. 
+There are command line options to set the baud rate, manually specify the USB
+device to use, and get output as a hex dump. Do `npm start -- -h` to get a list.
+
 
 # Additional credits
 

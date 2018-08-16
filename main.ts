@@ -50,6 +50,7 @@ interface ICommandLineOptions {
     verbose: boolean;
     baud: number;
     device: number[];
+    hex: boolean;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -110,6 +111,43 @@ async function deviceControlTransfer(device: usb.Device, bmRequestType: number, 
 /////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
 
+function flushHex(offset: number, buffer: number[], numColumns: number, suffix: string) {
+    let row = '';
+
+    row += offset.toString(16).padStart(8, '0') + ': ';
+
+    for (let i = 0; i < numColumns; ++i) {
+        row += ' ';
+
+        if (i < buffer.length) {
+            row += buffer[i].toString(16).padStart(2, '0');
+        } else {
+            row += '  ';
+        }
+    }
+
+    row += '  ';
+
+    for (let i = 0; i < numColumns; ++i) {
+        if (i < buffer.length) {
+            if (buffer[i] >= 32 && buffer[i] < 127) {
+                row += String.fromCharCode(buffer[i]);
+            } else {
+                row += '.';
+            }
+        } else {
+            row += ' ';
+        }
+    }
+
+    row += suffix;
+
+    process.stdout.write(row);
+}
+
+/////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
+
 const baudControls: { [index: number]: { a: number, b: number } | undefined } = {
     [2400]: { a: 0xd901, b: 0x0038 },
     [4800]: { a: 0x6402, b: 0x001f },
@@ -160,12 +198,32 @@ async function main(options: ICommandLineOptions) {
     await deviceControlTransfer(device, bmRequestType, 0x9a, 0x1312, baudControl.a, undefined);
     await deviceControlTransfer(device, bmRequestType, 0x9a, 0x0f2c, baudControl.b, undefined);
 
+    let hexBuffer: number[] = [];
+    let hexOffset = 0;
+    let numHexColumns = 16;
+
     for (; ;) {
         let buffer = await new Promise<Buffer>((resolve, reject) => {
             endpoint.transfer(endpoint.descriptor.wMaxPacketSize, (error, data) => error !== undefined ? reject(error) : resolve(data));
         });
 
-        process.stdout.write(buffer.toString());
+        if (options.hex) {
+            for (const byte of buffer) {
+                hexBuffer.push(byte);
+
+                if (hexBuffer.length === numHexColumns) {
+                    flushHex(hexOffset, hexBuffer, numHexColumns, '\n');
+                    hexBuffer = [];
+                    hexOffset += numHexColumns;
+                }
+            }
+
+            if (hexBuffer.length > 0) {
+                flushHex(hexOffset, hexBuffer, numHexColumns, '\r');
+            }
+        } else {
+            process.stdout.write(buffer.toString());
+        }
     }
 }
 
@@ -193,6 +251,7 @@ const parser = new argparse.ArgumentParser({
 parser.addArgument(['-v', '--verbose'], { action: 'storeTrue', defaultValue: false, help: 'be more verbose' });
 parser.addArgument(['-b', '--baud'], { defaultValue: 115200, help: 'set baud rate (default: %(defaultValue)s)' });
 parser.addArgument(['--device'], { nargs: 2, metavar: 'ID', type: usbVIDOrPID, defaultValue: [], help: 'set USB device VID/PID.' });
+parser.addArgument(['--hex'], { action: 'storeTrue', defaultValue: false, help: 'show data as a hex dump' });
 
 main(parser.parseArgs()).then(() => {
     // done...
