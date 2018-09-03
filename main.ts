@@ -169,7 +169,11 @@ async function main(options: ICommandLineOptions) {
     const device = findUSBDevice(options);
 
     vn('Opening device...');
+    device.__open();
     device.open();
+
+    vn('Resetting device...');
+    await new Promise((resolve, reject) => device.reset((error) => error !== undefined ? reject(error) : resolve()));
 
     vn('Claiming interface 0...');
     const interf = device.interface(0);
